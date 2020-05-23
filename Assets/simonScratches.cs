@@ -15,17 +15,25 @@ public class simonScratches : MonoBehaviour
     public KMSelectable startButton;
     public KMSelectable armButton;
     public KMSelectable armDial;
-    public Color[] recordColors;
+    public KMSelectable knob;
 
+    public Color[] recordColors;
     public Renderer record;
     public Transform arm;
+    public Transform knobDot;
 
+    private int[] recordColorIndices = new int[2];
+    private int selectedKnobDirection;
     private bool isCCW;
 
     private Coroutine recordMovement;
+    private Coroutine knobMovement;
     private bool spinning;
     private bool fullSpeed;
     private bool armOnRecord;
+    private static readonly float[] knobRotations = new float[] { 0f, 30f, 75f, 105f };
+
+    private static readonly string[] colorNames = new string[8] { "red", "green", "blue", "yellow", "cyan", "magenta", "black", "white" };
 
     private static int moduleIdCounter = 1;
     private int moduleId;
@@ -37,13 +45,20 @@ public class simonScratches : MonoBehaviour
         armButton.OnInteract += delegate () { PressArm(); return false; };
         startButton.OnInteract += delegate () { PressStart(); return false; };
         armDial.OnInteract += delegate () { PressArmDial(); return false; };
+        knob.OnInteract += delegate () { PressKnob(); return false; };
     }
 
     void Start()
     {
         isCCW = rnd.Range(0, 2) == 0;
-        record.materials[1].color = recordColors.PickRandom();
-        record.materials[0].color = recordColors.Where(x => record.materials[1].color != x).PickRandom();
+        recordColorIndices[0] = rnd.Range(0, 8);
+        recordColorIndices[1] = rnd.Range(0, 8);
+        while (recordColorIndices[1] == recordColorIndices[0])
+            recordColorIndices[1] = rnd.Range(0, 8);
+        record.materials[1].color = recordColors[recordColorIndices[0]];
+        record.materials[0].color = recordColors[recordColorIndices[1]];
+        for (int i = 0; i < 2; i++)
+            Debug.LogFormat("[Simon Scratches #{0}] The {1} part of the record is {2}.", moduleId, i == 0 ? "inner" : "outer", colorNames[recordColorIndices[i]]);
     }
 
     void PressArm()
@@ -57,9 +72,17 @@ public class simonScratches : MonoBehaviour
     {
         audio.PlaySoundAtTransform("click", startButton.transform);
         startButton.AddInteractionPunch(.1f);
-        if (spinning || moduleSolved)
+        if (moduleSolved)
             return;
-        StartCoroutine(StartRecordSpin());
+        if (!spinning)
+            StartCoroutine(RecordTransition(0f, 100f, true));
+        else if (spinning && !fullSpeed)
+            return;
+        else if (spinning && fullSpeed)
+        {
+            StopCoroutine(recordMovement);
+            StartCoroutine(RecordTransition(100f, 0f, false));
+        }
     }
 
     void PressArmDial()
@@ -67,14 +90,40 @@ public class simonScratches : MonoBehaviour
 
     }
 
-    IEnumerator StartRecordSpin()
+    void PressKnob()
+    {
+        selectedKnobDirection = (selectedKnobDirection + 5) % 4;
+        if (knobMovement != null)
+        {
+            StopCoroutine(knobMovement);
+            knobMovement = null;
+        }
+        knobMovement = StartCoroutine(MoveKnob(selectedKnobDirection));
+    }
+
+    IEnumerator MoveKnob(int direction)
+    {
+        var startRotation = knobDot.localRotation;
+        var endRotation = Quaternion.Euler(0f, knobRotations[direction], 0f);
+        var elapsed = 0f;
+        var duration = .75f;
+        while (elapsed < duration)
+        {
+            knobDot.localRotation = Quaternion.Slerp(startRotation, endRotation, elapsed / duration);
+            yield return null;
+            elapsed += Time.deltaTime;
+        }
+        knobDot.localRotation = endRotation;
+    }
+
+    IEnumerator RecordTransition(float startSpeed, float endSpeed, bool spinningAfter)
     {
         spinning = true;
         var elapsed = 0f;
         var duration = 4f;
         while (elapsed < duration)
         {
-            var accel = Mathf.Lerp(0f, 100f, elapsed / duration);
+            var accel = Mathf.Lerp(startSpeed, endSpeed, elapsed / duration);
 			var framerate = 1f / Time.deltaTime;
 			var rotation = accel / framerate;
 			if (isCCW)
@@ -85,12 +134,15 @@ public class simonScratches : MonoBehaviour
 			yield return null;
 			elapsed += Time.deltaTime;
         }
-        recordMovement = StartCoroutine(SpinRecord());
+        spinning = spinningAfter;
+        if (startSpeed == 0f)
+            recordMovement = StartCoroutine(SpinRecord());
         yield break;
     }
 
     IEnumerator SpinRecord()
     {
+        spinning = true;
         fullSpeed = true;
         while (true)
 		{
