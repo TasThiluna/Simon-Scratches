@@ -15,23 +15,21 @@ public class simonScratches : MonoBehaviour
     public KMSelectable startButton;
     public KMSelectable armButton;
     public KMSelectable armDial;
-    public KMSelectable knob;
 
     public Color[] recordColors;
     public Renderer record;
     public Transform arm;
-    public Transform knobDot;
+    public GameObject[] ports;
+    public Light[] rjLights;
 
     private int[] recordColorIndices = new int[2];
-    private int selectedKnobDirection;
+    private int portIndex;
     private bool isCCW;
 
     private Coroutine recordMovement;
-    private Coroutine knobMovement;
     private bool spinning;
     private bool fullSpeed;
     private bool armOnRecord;
-    private static readonly float[] knobRotations = new float[] { 0f, 30f, 75f, 105f };
 
     private static readonly string[] colorNames = new string[8] { "red", "green", "blue", "yellow", "cyan", "magenta", "black", "white" };
 
@@ -45,11 +43,17 @@ public class simonScratches : MonoBehaviour
         armButton.OnInteract += delegate () { PressArm(); return false; };
         startButton.OnInteract += delegate () { PressStart(); return false; };
         armDial.OnInteract += delegate () { PressArmDial(); return false; };
-        knob.OnInteract += delegate () { PressKnob(); return false; };
     }
 
     void Start()
     {
+        float scalar = transform.lossyScale.x;
+        foreach (Light l in rjLights)
+            l.range *= scalar;
+        portIndex = rnd.Range(0, ports.Length);
+        foreach (GameObject port in ports)
+            if (Array.IndexOf(ports, port) != portIndex)
+                port.SetActive(false);
         isCCW = rnd.Range(0, 2) == 0;
         recordColorIndices[0] = rnd.Range(0, 8);
         recordColorIndices[1] = rnd.Range(0, 8);
@@ -88,32 +92,6 @@ public class simonScratches : MonoBehaviour
     void PressArmDial()
     {
 
-    }
-
-    void PressKnob()
-    {
-        selectedKnobDirection = (selectedKnobDirection + 5) % 4;
-        if (knobMovement != null)
-        {
-            StopCoroutine(knobMovement);
-            knobMovement = null;
-        }
-        knobMovement = StartCoroutine(MoveKnob(selectedKnobDirection));
-    }
-
-    IEnumerator MoveKnob(int direction)
-    {
-        var startRotation = knobDot.localRotation;
-        var endRotation = Quaternion.Euler(0f, knobRotations[direction], 0f);
-        var elapsed = 0f;
-        var duration = .75f;
-        while (elapsed < duration)
-        {
-            knobDot.localRotation = Quaternion.Slerp(startRotation, endRotation, elapsed / duration);
-            yield return null;
-            elapsed += Time.deltaTime;
-        }
-        knobDot.localRotation = endRotation;
     }
 
     IEnumerator RecordTransition(float startSpeed, float endSpeed, bool spinningAfter)
