@@ -52,8 +52,7 @@ public class simonScratches : MonoBehaviour
             l.range *= scalar;
         portIndex = rnd.Range(0, ports.Length);
         foreach (GameObject port in ports)
-            if (Array.IndexOf(ports, port) != portIndex)
-                port.SetActive(false);
+            port.SetActive(Array.IndexOf(ports, port) == portIndex);
         isCCW = rnd.Range(0, 2) == 0;
         recordColorIndices[0] = rnd.Range(0, 8);
         recordColorIndices[1] = rnd.Range(0, 8);
